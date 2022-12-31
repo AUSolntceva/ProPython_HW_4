@@ -1,58 +1,80 @@
-import re
-import csv
-
-DATA_FILE = 'phonebook_raw.csv'
-PHONE_PATTERN = '(8|\+7)?\s*(\(*)(\d{3})(\)*)(\s*|-)(\d{3})(\s*|-)(\d{2})(\s*|-)(\d{2})\s*(\(*)(\w\w\w\.)*\s*(\d{4})*(\))*'
-SUB_PHONE = r'+7(\3)\6-\8-\10 \12\13'
+import types
 
 
-def input_data():
-    with open(DATA_FILE, encoding='UTF-8') as f:
-        rows = csv.reader(f, delimiter=",")
-        contacts_list = list(rows)
-    return contacts_list
+class FlatIterator:
+
+    def __init__(self, list_of_list):
+        self.list_of_list = list_of_list
+
+    def __iter__(self):
+        self.list_iter = iter(self.list_of_list)
+        self.list_of_lists_1 = []
+        self.cursor = -1
+        return self
+
+    def __next__(self):
+        self.cursor += 1
+        if len(self.list_of_lists_1) == self.cursor:
+            self.list_of_lists_1 = None
+            self.cursor = 0
+            while not self.list_of_lists_1:
+                self.list_of_lists_1 = next(self.list_iter)
+        return self.list_of_lists_1[self.cursor]
 
 
-def parse_contact_list(contacts_list):
-    new_contacts_list = list()
-    for contact in contacts_list:
-        new_contact = list()
-        full_name_str = ",".join(contact[:3])
-        result = re.findall(r'(\w+)', full_name_str)
-        while len(result) < 3:
-            result.append('')
-        new_contact += result
-        new_contact.append(contact[3])
-        new_contact.append(contact[4])
-        phone_pattern = re.compile(PHONE_PATTERN)
-        changed_phone = phone_pattern.sub(SUB_PHONE, contact[5])
-        new_contact.append(changed_phone)
-        new_contact.append(contact[6])
-        new_contacts_list.append(new_contact)
-    return new_contacts_list
 
+def flat_generator(list_of_lists):
 
-def delete_duplicates_contact(new_contacts_list):
-    phone_book = dict()
-    for contact in new_contacts_list:
-        if contact[0] in phone_book:
-            contact_value = phone_book[contact[0]]
-            for i in range(len(contact_value)):
-                if contact[i]:
-                    contact_value[i] = contact[i]
+    for elem in list_of_lists:
+        if isinstance(elem, list):
+            for sub_elem in flat_generator(elem):
+                yield sub_elem
         else:
-            phone_book[contact[0]] = contact
-    return list(phone_book.values())
+            yield elem
 
 
-def write_data(new_contacts_list):
-    with open("phonebook.csv", "w", newline='', encoding='UTF-8') as f:
-        writer = csv.writer(f, delimiter=',')
-        writer.writerows(new_contacts_list)
+def test_1():
 
-new_contacts_list = input_data()
-new_parsed_list = parse_contact_list(new_contacts_list)
-contact_book_values = delete_duplicates_contact(new_parsed_list)
-write_data(contact_book_values)
+    list_of_lists_1 = [
+        ['a', 'b', 'c'],
+        ['d', 'e', 'f', 'h', False],
+        [1, 2, None]
+    ]
+
+    for flat_iterator_item, check_item in zip(
+            FlatIterator(list_of_lists_1),
+            ['a', 'b', 'c', 'd', 'e', 'f', 'h', False, 1, 2, None]
+    ):
+
+        assert flat_iterator_item == check_item
+
+    assert list(FlatIterator(list_of_lists_1)) == ['a', 'b', 'c', 'd', 'e', 'f', 'h', False, 1, 2, None]
+
+
+if __name__ == '__main__':
+    test_1()
+
+def test_2():
+
+    list_of_lists_1 = [
+        ['a', 'b', 'c'],
+        ['d', 'e', 'f', 'h', False],
+        [1, 2, None]
+    ]
+
+    for flat_iterator_item, check_item in zip(
+            flat_generator(list_of_lists_1),
+            ['a', 'b', 'c', 'd', 'e', 'f', 'h', False, 1, 2, None]
+    ):
+
+        assert flat_iterator_item == check_item
+
+    assert list(flat_generator(list_of_lists_1)) == ['a', 'b', 'c', 'd', 'e', 'f', 'h', False, 1, 2, None]
+
+    assert isinstance(flat_generator(list_of_lists_1), types.GeneratorType)
+
+
+if __name__ == '__main__':
+    test_2()
 
 
